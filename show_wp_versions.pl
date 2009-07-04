@@ -74,6 +74,10 @@ sub split_domain_parts {
     $info_ref->{$domain_name}{'name_sort'} = $plain_domain . "." . $domain_subs;
 }
 
+#
+# consider also supporting phpBB by looking at the Root (ending in /phpbb instead of /wordpress)
+#
+
 sub find_wp_version {
     my $domain_info_ref = shift;
 
@@ -102,6 +106,7 @@ sub find_wp_version {
 		if (my $svn_info = $svn_file->info) {
 		    $domain_info_ref->{'svn_date'} = $svn_info->date;
 		    $domain_info_ref->{'svn_url'} = $svn_info->url;
+		    $domain_info_ref->{'svn_root'} = $svn_info->root;
 		    if ($svn_info->url =~ m{/(tags/[^/]+|\w+)\Z}) {
 			$domain_info_ref->{'svn_version'} = $1;
 		    }
