@@ -35,6 +35,8 @@ $ ./show_wp_versions.pl -n
 
 sorted by owning UID
 
+Also can use:  -b   ... Create SQL backup files in /tmp
+
 =cut
 
 use Getopt::Std;
@@ -74,6 +76,43 @@ sub split_domain_parts {
     $info_ref->{$domain_name}{'name_sort'} = $plain_domain . "." . $domain_subs;
 }
 
+sub backup_wp_database {
+
+    my $domain_info_ref = shift;
+
+    my $doc_root = $domain_info_ref->{'path'};
+
+    foreach my $wp_root ("$doc_root/", 
+			"$doc_root/wordpress/"
+			) {
+	my $v_file = $wp_root . "wp-config.php";
+	if (-e $v_file) {
+	    $domain_info_ref->{'wp_config_file'} = $v_file;
+	    
+	    # Find stated Wordpress version from .php file
+	    open DOMAIN_CFG, "<$v_file";
+	    while (<DOMAIN_CFG>) {
+		if (/'(DB_\w+)'\s*,\s*'([^\']+)'/) {
+		    $domain_info_ref->{lc($1)} = $2;
+		}
+	    }
+	    close DOMAIN_CFG;
+	    my $user = $domain_info_ref->{'db_user'};
+	    my $pass = $domain_info_ref->{'db_password'};
+	    $pass =~ s/"/\"/g;
+	    $pass =~ s/\$/\\\$/g;
+	    my $host = $domain_info_ref->{'db_host'};
+	    my $db = $domain_info_ref->{'db_name'};
+
+
+	    `printf '[client]\npassword=%s\n' "$pass" | 3<&0 mysqldump  --defaults-file=/dev/fd/3 $db -u $user >/tmp/\`date +$db-%Y%m%d-%H%M.sql\``;
+	}
+    }
+
+}
+
+
+
 #
 # consider also supporting phpBB by looking at the Root (ending in /phpbb instead of /wordpress)
 #
@@ -91,6 +130,8 @@ sub find_wp_version {
 	    $domain_info_ref->{'wp_version_file'} = $v_file;
 	    # my $domain_uid = (stat($v_file))[4];
 	    # $domain_info_ref->{'owner'} = ( getpwuid( $domain_uid ))[0];
+	    
+	    # Find stated Wordpress version from .php file
 	    open DOMAIN_CFG, "<$v_file";
 	    while (<DOMAIN_CFG>) {
 		if (/wp_version\s*=\s*[\'\"]([-0-9.a-zA-Z]+)/) {
@@ -99,8 +140,9 @@ sub find_wp_version {
 		}
 	    }
 	    close DOMAIN_CFG;
+
 	    my $svn_path = $wp_root . ".svn";
-	    # print "{$svn_path}\n";
+	    # print "{$svn_path} (" . (-e $svn_path) . ")\n" ;
 	    if (-e $svn_path) {
 		my $svn_file = svn_file($wp_root);
 		if (my $svn_info = $svn_file->info) {
@@ -151,7 +193,12 @@ sub get_apache_domains {
 		my $domain_uid = (stat($n->{value}))[4];
 		$domain_info{$node_value}{'owner'} = ( getpwuid( $domain_uid ))[0];
 
-		last if find_wp_version(\%{$domain_info{$node_value}});
+		if (find_wp_version(\%{$domain_info{$node_value}})) {
+		    if ($::opt_b) {
+			backup_wp_database(\%{$domain_info{$node_value}});
+		    }
+		    last;
+		}
 
 	#	print "---\n", Dumper($domain_info{$node_value}), "\n";
 
@@ -181,15 +228,26 @@ if ($::opt_n) {
 
 print "Using $domain_info{'~httpd'}{app} version $domain_info{'~httpd'}{version}\n\n";
 
-my $fmt_string = "%-30s %-10s %-20s %-15s\n";
-printf($fmt_string, "Domain",      "Version", "Tracking Subversion","Owner");
+my $fmt_string = "%-35s %-9s %-22s %-15s\n";
+printf($fmt_string, "Domain",      "Notes", "Tracking Version","Owner");
 printf($fmt_string, "-----------", "--------","-------------------","-----");
 
 foreach my $d (@display) {
+    # eliminate internal Apache housekeeping domains
     if ($d =~ /(\.\w{2,4}(:\d+)?|\.\w{3,}\.\w{2,}(:\d+)?)\Z/) {
-	printf($fmt_string, $d, $domain_info{$d}{'wp_version'},
-	       $domain_info{$d}{'svn_version'},
+	my $old_repos = ($domain_info{$d}{'svn_root'} =~ /automattic/);
+	my $svn_version = ($domain_info{$d}{'svn_version'} =~ m{^tags/}) ?
+	    "svn: " . $domain_info{$d}{'wp_version'} :
+	    ( length($domain_info{$d}{'svn_version'}) ?
+	      $domain_info{$d}{'svn_version'} . ": " . $domain_info{$d}{'wp_version'} :
+	      $domain_info{$d}{'wp_version'});
+
+	printf($fmt_string, $d, 
+	       $old_repos ? "(old svn)" : "",
+	       $svn_version,
 	       $domain_info{$d}{'owner'});
+#	print $domain_info{$d}{'svn_url'}."\n";
+#	print $domain_info{$d}{'svn_root'}."\n";
     }
 }
 
