@@ -9,7 +9,7 @@ use Carp;
 # All rights reserved. This program is free software; you can redistribute
 # it and/or modify it under the same terms as Perl itself.
 
-my $VERSION = "1.4";
+my $VERSION = "1.5";
 
 =head1 NAME
 
@@ -37,6 +37,7 @@ $ ./show_wp_versions.pl
 
  -a   Display all domain names, even ones we do not have read permission
  -b   Create SQL backup files in /tmp
+ -U   Force database upgrades via wget
 
 =cut
 
@@ -255,6 +256,16 @@ sub backup_wp_database {
 	}
     }
 }
+
+sub upgrade_database {
+
+    my $domain_info_ref = shift;
+    my $domain_base = $domain_info_ref->{'name_base'};
+
+    # print Dumper($domain_info_ref);
+    `wget http://$domain_info_ref->{'name'}/wp-admin/upgrade.php?step=1 -o /tmp/status-${domain_base}`;
+}
+
 
 #
 #
@@ -546,6 +557,9 @@ sub get_apache_domains {
 		if (find_wp_version(\%{$domain_info{$node_value}})) {
 		    if ($::opt_b) {
 			backup_wp_database(\%{$domain_info{$node_value}});
+		    }
+		    if ($::opt_U) {
+			upgrade_database(\%{$domain_info{$node_value}});
 		    }
 		    last;
 		}
