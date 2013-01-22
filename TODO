@@ -1,0 +1,137 @@
+2011-02-09
+
+Modify switches:
+
+ -u    to take username argument
+ -l    for Long mode listing... include owner name
+ -v    verbose. as -l and also, active plugins with plugin version.
+ --sort=X    X=version, uid, user, date, ctime, mtime, ...?
+
+-----------------
+
+cache full list of installed plugins and themes
+... all persistent data into a database?
+... this script as cron-able job?
+
+
+**********************************************************************
+
+
+how to retrieve current version of WP repository plugins?
+
+-----------------
+
+mysql> select * from wp_options where option_name = "active_plugins" \G
+*************************** 1. row ***************************
+    option_id: 38
+    blog_id: 0
+    option_name: active_plugins
+option_value: a:7:{i:0;s:22:"autonav/autonav-wl.php";i:1;s:28:"change-attachment-parent.php";i:2;s:33:"event-calendar/eventcalendar3.php";i:3;s:25:"event-calendar/widget.php";i:4;s:41:"kickstart-commerce/kickstart-commerce.php";i:5;s:21:"pagemash/pagemash.php";i:6;s:39:"watermark-reloaded/watermark-loader.php";}
+autoload: yes
+1 row in set (0.00 sec)
+
+-----------------
+
+use PHP::Serialization qw(serialize unserialize);
+my @value = split(/:\s*/,'option_value: a:2:{i:0;s:22:"autonav/autonav-wl.php";i:1;s:21:"pagemash/pagemash.php";}',2);
+my $foo=unserialize($value[1]);
+use Data::Dumper;
+print Dumper($foo);
+
+
+Note: relative to wp_plugins_dir
+
+**********************************************************************
+
+Retrieve active theme
+
+mysql> select * from wp_options where option_name="template" or option_name='stylesheet' or option_name='current_theme';
++-----------+---------------+------------------------------------+----------+
+| option_id | option_name   | option_value                       | autoload |
++-----------+---------------+------------------------------------+----------+
+|       182 | current_theme | Lindley Company based on KickStart | yes      |
+|        45 | stylesheet    | lindco-kick                        | yes      |
+|        44 | template      | kickstart                          | yes      |
++-----------+---------------+------------------------------------+----------+
+3 rows in set (0.00 sec)
+
+'stylesheet' is the folder name for the current child theme; 'template' for
+the parent theme.  'current_theme' is the theme name as defined in the child
+theme's style.css.
+
+**********************************************************************
+
+Use a SQLite database (see DBD::SQLite [1]) -- or a regular MySQL database -- to store/cache
+information about domains.
+
+Prime motivation was to cache 'whois' on *.org domains which must be throttled
+to 3 per minute.  However all domains would benefit from caching; only retrieve
+whois data from whois-server if data is old, domain is near expiration, or upon
+user demand.  Decide on actual algorithm.
+
+* Option: Use Tie::DBI [2] to create a direct link as a hash to the database
+fields.  /// However this does not seem to work reliably
+with SQLite -- wl 2013-01-19
+
+
+[1] http://search.cpan.org/~msergeant/DBD-SQLite-0.31/lib/DBD/SQLite.pm
+[2] http://search.cpan.org/~toddr/Tie-DBI-1.05/lib/Tie/DBI.pm 
+
+
+
+-----------------
+
+
+
+
+Default apache domain becomes 'primary domain'
+
+If primary domain is wordpress, use admin account (or algorithm below) as overall system admin.
+Save sysadmin's email address.
+
+Open each domain's database.
+Determine administrator:
+  1. 'admin' username
+  2. '*admin*' username with lowest UID
+  3. user with email same as overall sysadmin
+  4. (fallback) lowest UID administrator level account
+
+
+Detect virtualmin?
+
+For virtualmin systems:
+  Determine domains that are 'under' other domains... regardless of directory location
+
+**********************************************************************
+
+Use algorithm from upgradeall script (below) to upgrade subversion installs.
+Also pull code from 'wptool' to find latest version of wp.
+
+-----------------
+
+
+#!/bin/bash
+#
+# Upgrades all this user's Wordpress sites.
+# To use:  (as root)
+#    sudo -u the_username -i /opt/wordpress/upgradeall.sh
+#
+
+logfile=/tmp/`whoami`-`date +%Y%m%d`.log
+
+for subdomain in ~/public_html ~/domains/*/public_html
+do
+  echo Upgrading $subdomain
+  pushd $subdomain
+
+  svn cleanup
+  wpversion=`svn info`
+  if [[ "$wpversion" =~ "svn\.automattic\.com" ]]
+  then
+    svn sw --relocate http://svn.automattic.com/wordpress/ http://core.svn.wordpress.org/ .
+  fi
+
+  echo Upgrading $subdomain >>$logfile
+  /opt/wordpress/wptool upgrade >> $logfile
+  popd
+done
