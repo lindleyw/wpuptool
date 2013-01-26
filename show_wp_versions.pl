@@ -1,15 +1,16 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+no warnings 'once';
 use Carp;
 
 # show_wp_versions.pl
 #
-# Copyright (c) 2009-2012 William Lindley <wlindley@wlindley.com>
+# Copyright (c) 2009-2013 William Lindley <wlindley@wlindley.com>
 # All rights reserved. This program is free software; you can redistribute
 # it and/or modify it under the same terms as Perl itself.
 
-my $VERSION = "1.5";
+my $VERSION = "1.6";
 
 =head1 NAME
 
@@ -25,11 +26,14 @@ tagged or trunk version is displayed as well.
 
 =head1 USAGE
 
-$ ./show_wp_versions.pl
+$ ./show_wp_versions.pl  [domain_regexp]
+
+  domain_regexp, if supplied, will act only on domains matching.
 
       Default: sort by domain name
                (subdomain names have low priority in the sort)
 
+ -l   Long format: include template and plugin report ~~~
  -n   Sort by numeric version number
  -t   Sort by Subversion date/time
  -e   Sort by domain expiration date
@@ -38,6 +42,9 @@ $ ./show_wp_versions.pl
  -a   Display all domain names, even ones we do not have read permission
  -b   Create SQL backup files in /tmp
  -U   Force database upgrades via wget
+
+ -i   Reset (initialize) internal database of domain information  ~~~
+ -f   Specify alternate domain-information database file  ~~~
 
 =cut
 
@@ -104,11 +111,12 @@ my $phpbb_version_file = "includes/constants.php";
 
 sub find_phpbb_version {
 
-# /home/recidivists/public_html/includes/constants.php:define('PHPBB_VERSION', '3.0.8');
+# /home/someuser/public_html/includes/constants.php:define('PHPBB_VERSION', '3.0.8');
 
     my $domain_info_ref = shift;
 
     my $doc_root = $domain_info_ref->{'path'};
+    return 0 if !defined $doc_root;
 
     foreach my $app_root ("$doc_root/", 
 			"$doc_root/forum/"
@@ -186,6 +194,7 @@ sub find_wp_version {
     my $domain_info_ref = shift;
 
     my $doc_root = $domain_info_ref->{'path'};
+    return 0 if !defined $doc_root;
 
     foreach my $wp_root ("$doc_root/", 
 			"$doc_root/wordpress/"
@@ -228,7 +237,7 @@ sub find_wp_version {
     return 0;
 }
 
-sub backup_wp_database {
+sub find_wp_database {
 
     my $domain_info_ref = shift;
 
@@ -249,13 +258,25 @@ sub backup_wp_database {
 		}
 	    }
 	    close DOMAIN_CFG;
-
-	    backup_database( $domain_info_ref->{'db_user'}, $domain_info_ref->{'db_password'},
-			     $domain_info_ref->{'db_host'}, $domain_info_ref->{'db_name'});
-
 	}
     }
 }
+
+sub backup_wp_database {
+
+    my $domain_info_ref = shift;
+        
+    if (defined $domain_info_ref->{'db_user'} &&
+        defined $domain_info_ref->{'db_password'} &&
+        defined $domain_info_ref->{'db_host'} &&
+        defined $domain_info_ref->{'db_name'}) {
+	    backup_database( $domain_info_ref->{'db_user'}, $domain_info_ref->{'db_password'},
+			     $domain_info_ref->{'db_host'}, $domain_info_ref->{'db_name'});
+
+    }
+}
+
+use LWP::Simple;
 
 sub upgrade_database {
 
@@ -263,9 +284,37 @@ sub upgrade_database {
     my $domain_base = $domain_info_ref->{'name_base'};
 
     # print Dumper($domain_info_ref);
-    `wget http://$domain_info_ref->{'name'}/wp-admin/upgrade.php?step=1 -o /tmp/status-${domain_base}`;
+
+    my $url = "http://$domain_info_ref->{'name'}/wp-admin/upgrade.php?step=1&backto=/wp-admin/";
+    my $content = get $url;
+
+    if ($content =~ m{<h2[^>]*>(.*?)</h2}i) {
+        $domain_info_ref->{'update_status'} = $1;
+    }
+
 }
 
+sub show_wp_theme {
+
+    my $domain_info_ref = shift;
+        
+    if (defined $domain_info_ref->{'db_user'} &&
+        defined $domain_info_ref->{'db_password'} &&
+        defined $domain_info_ref->{'db_host'} &&
+        defined $domain_info_ref->{'db_name'}) {
+
+        # Open a connection to the WP database
+	#    backup_database( $domain_info_ref->{'db_user'}, $domain_info_ref->{'db_password'},
+	#		     $domain_info_ref->{'db_host'}, $domain_info_ref->{'db_name'});
+
+    }
+}
+
+sub show_wp_plugins {
+
+    my $domain_info_ref = shift;
+        
+}
 
 #
 #
@@ -439,7 +488,7 @@ sub retrieve_domain_whois {
 	# This is where it all happens - regexes to capture registrar and expiration
 	$domain->{'registrar'} ||= $1 if /(?:maintained by|registration [^:]*by|authorized agency|registrar)(?:\s*|_)(?:name|id|of record)?:\s*(.*)$/i;
 	$domain->{'expires'} ||= ParseDate($1) if /(?:expires(?: on)?|expir(?:e|y|ation) date\s*|renewal(?:[- ]date)?)[:\] ]\s*(\d{2}-[a-z]{3}-\d{4})/i;
-	if (m/\bName\s+server:\s+([-.a-z0-9]+)+/is) {
+	if (m{\bName\s+server:\s+([-.a-z0-9]+)+}is) {
 	    my $ns = $1;   #  convert name to IPv4 dotted quad
 	    my $ns_net = inet_aton($ns);
 	    if ($ns_net) {
@@ -526,18 +575,6 @@ sub get_apache_domains {
 
 	#    print ">>> ROOT: $apache_cfg \n";
 
-	# may also want to do this:
-	print "----------------ALIASES----------------\n";
-	foreach my $site_node ($apache_cfg->find_down_directive_names('ServerAlias')) {
-	    print $site_node->value . " an alias of: ";
-
-	    my @server_names = $apache_cfg->find_siblings_and_up_directive_names($site_node,'ServerName');
-	    foreach my $s (@server_names) {
-		print $s->value . "\n";
-	    }
-	}
-	print "--------------------------------\n";
-
 	foreach my $site_node ($apache_cfg->find_down_directive_names('ServerName')) {
 	    my $node_name = $site_node->name;
 	    my $node_value = $site_node->value;
@@ -554,25 +591,32 @@ sub get_apache_domains {
 		    $domain_info{$node_value}{'owner'} = ( getpwuid( $domain_uid ))[0];
 		}
 
-		if (find_wp_version(\%{$domain_info{$node_value}})) {
-		    if ($::opt_b) {
-			backup_wp_database(\%{$domain_info{$node_value}});
-		    }
-		    if ($::opt_U) {
-			upgrade_database(\%{$domain_info{$node_value}});
-		    }
-		    last;
-		}
-		if (find_phpbb_version(\%{$domain_info{$node_value}})) {
-		    if ($::opt_b) {
-			backup_phpbb_database(\%{$domain_info{$node_value}});
-		    }
-		}
-
 	#	print "---\n", Dumper($domain_info{$node_value}), "\n";
 
 	    }
 	}
+
+	# may also want to do this:
+	#print "----------------ALIASES----------------\n";
+        $Data::Dumper::Maxdepth = 4;
+        my $domain_id = 0;
+	foreach my $site_node ($apache_cfg->find_down_directive_names('ServerAlias')) {
+	    # print  "- - - -\n";
+	    # print  $site_node->value . "\n";
+            # print  Dumper($site_node);
+
+	    #print  $site_node->value . " an alias of: ";
+	    my @server_names = $apache_cfg->find_siblings_and_up_directive_names($site_node,'ServerName');
+	    foreach my $s (@server_names) {
+
+		push @{$domain_info{$s->value}{'aliases'}}, $site_node->value;
+
+		#print  $s->value . " ";
+	    }
+            #print  "\n";
+	}
+	#print "--------------------------------\n";
+        
     } else {
 	print "Apache is not installed. :-(\n";
     }
@@ -601,17 +645,63 @@ sub is_local {
     return 0;
 }
 
+
+#####################
+#
+# MAIN PROGRAM
+#
+#####################
+
+my $domain_match = shift;   # first argument
+
 #print "get_apache_domains()\n";
 get_apache_domains();
-#print "...DONE\n";
+#print Dumper(%domain_info);
 
-
-# print Dumper(%domain_info);
-
-my @display = keys %domain_info;
+my @found_domains = keys %domain_info;
+my @display;
 my %plain_domain_info;
 
-no warnings;
+# Select domains based on optional regexp.
+# Find installed applications.
+
+foreach my $d (@found_domains) {
+
+    next if $d =~ /^~/;  # ignore our internal data
+    next if (defined $domain_match && $d !~ /$domain_match/);
+
+    if (find_wp_version(\%{$domain_info{$d}})) {
+	find_wp_database(\%{$domain_info{$d}});
+	if ($::opt_b) {
+	    backup_wp_database(\%{$domain_info{$d}});
+	}
+	if ($::opt_l) {
+	    show_wp_theme(\%{$domain_info{$d}});
+	    # show_wp_plugins(\%{$domain_info{$d}});
+	}
+	if ($::opt_U) {
+	    upgrade_database(\%{$domain_info{$d}});
+	}
+    }
+    if (find_phpbb_version(\%{$domain_info{$d}})) {
+	if ($::opt_b) {
+	    backup_phpbb_database(\%{$domain_info{$d}});
+	}
+    }
+
+    # Domain exists if we find an application, or can read doc root
+    if (!defined $domain_info{$d}{'exists'}) {
+	if (-e $domain_info{$d}{'path'}) {
+	    $domain_info{$d}{'exists'} = 1;
+	}
+    }
+    # Only add readable domains, unless listing all.
+    next unless $::opt_a ||  $domain_info{$d}{'exists'};
+    push @display, $d;
+
+}
+
+no warnings;   # suppress warnings about $::a and $::b
 if ($::opt_n) {
     @display = sort {
 	$domain_info{$::a}{'version_sort'} cmp $domain_info{$::b}{'version_sort'} ||
@@ -625,6 +715,7 @@ if ($::opt_n) {
     @display = sort {$domain_info{$::a}{'name_sort'} cmp $domain_info{$::b}{'name_sort'}} @display;
 }
 use warnings;
+no warnings 'once';
 
 # Find the net hosts for each domain
 foreach my $d (@display) {
@@ -638,6 +729,12 @@ foreach my $d (@display) {
 
 print "Using $domain_info{'~httpd'}{app} version $domain_info{'~httpd'}{version}\n\n";
 
+#####################
+#
+# Process each domain
+#
+#####################
+
 my $fmt_string = "%-35s %-8s %-13s %-15s %-15s\n";
 print '   ' if ($::opt_u);
 my $date_title = $::opt_e ? 'Expires' : 'App Date';
@@ -648,36 +745,36 @@ printf($fmt_string, "-----------", "--------","-------","-----","----------");
 my $last_uid = '';
 
 foreach my $d (@display) {
+    # Without -a flag, display only websites whose information we can extract
     next if (!$::opt_a && !$domain_info{$d}{'exists'});
-    # eliminate internal Apache housekeeping domains
-    if ($d =~ /(\.\w{2,4}(:\d+)?|\.\w{3,}\.\w{2,}(:\d+)?)\Z/) {
-	my $svn_root = $domain_info{$d}{'svn_root'} || '';
-	my $svn_flag = ($svn_root =~ /automattic/) ? "[OR]" : "";
-	my $app_version = '';
-	my $svn_version = $domain_info{$d}{'svn_version'} || '';
-	if ($svn_version =~ m{^tags/(.+)$}) {
-	    $app_version = "$1";
-	    if ($app_version ne $domain_info{$d}{'wp_version'}) {
-		$svn_flag .= '[!!]'; # mismatch!
-	    }
-	} elsif ($domain_info{$d}{'phpbb_version'}) {
-	    $app_version = $domain_info{$d}{'phpbb_version'};
-	} elsif ($domain_info{$d}{'wp_version'}) {
-	    $app_version = $domain_info{$d}{'wp_version'};
+
+    my $svn_root = $domain_info{$d}{'svn_root'} || '';
+    my $svn_flag = ($svn_root =~ /automattic/) ? "[OR]" : "";
+    my $app_version = '';
+    my $svn_version = $domain_info{$d}{'svn_version'} || '';
+    if ($svn_version =~ m{^tags/(.+)$}) {
+	$app_version = "$1";
+	if ($app_version ne $domain_info{$d}{'wp_version'}) {
+	    $svn_flag .= '[!!]'; # mismatch!
 	}
-	$app_version = (defined ($domain_info{$d}{'svn_version'}) ? '+':' ') . $app_version;
+    } elsif ($domain_info{$d}{'phpbb_version'}) {
+	$app_version = $domain_info{$d}{'phpbb_version'};
+    } elsif ($domain_info{$d}{'wp_version'}) {
+	$app_version = $domain_info{$d}{'wp_version'};
+    }
+    $app_version = (defined ($domain_info{$d}{'svn_version'}) ? '+':' ') . $app_version;
 
-	if ( exists( $domain_info{$d}{'nameservers'} ) && 
-	     !defined( $domain_info{$d}{'nameservers'} )) {
-	    $svn_flag .= '[X]';
-	}
+    if ( exists( $domain_info{$d}{'nameservers'} ) && 
+	 !defined( $domain_info{$d}{'nameservers'} )) {
+	$svn_flag .= '[X]';
+    }
 
-	my @datebits = split(/ /, $domain_info{$d}{'svn_date'} || '');
+    my @datebits = split(/ /, $domain_info{$d}{'svn_date'} || '');
 
-	# For the WHOIS, we look at $domain_info{$node_value}{'name_plain'}
-	# but we need to cache those... and do appropriate delays for .org's
-	my $plain_domain = $domain_info{$d}{'name_plain'};
-	
+    # For the WHOIS, we look at $domain_info{$node_value}{'name_plain'}
+    # but we need to cache those... and do appropriate delays for .org's
+    my $plain_domain = $domain_info{$d}{'name_plain'};
+    
 	{
 	    my $dom = {'host' => $plain_domain};
 	    my $conf= {};
@@ -730,7 +827,6 @@ foreach my $d (@display) {
 	       ($::opt_e ? $plain_domain_info{$domain_info{$d}{'name_plain'}}{'expires'} : $datebits[0]) || '');
 #	print $domain_info{$d}{'svn_date'}."\n";
 #	print $domain_info{$d}{'svn_root'}."\n";
-    }
 }
 print '   ' if ($::opt_u);
 printf($fmt_string, "-----------", "--------","-------","-----","----------");
@@ -743,4 +839,38 @@ print <<ENDNOTE;
      -N   = Nameserver does not point here
      -H   = 'A' record does not point here
 ENDNOTE
+
+if ($::opt_l) {
+    foreach my $d (@display) {
+	print "$d  ";
+
+        if (exists $domain_info{$d}{'update_status'}) {
+           print "$domain_info{$d}{'update_status'}  ";
+        }
+
+
+	# Display hostname if not local
+	if (!is_local($domain_info{$d}{'nethost'})) {
+	    my ($name, $aliases, $addrtype, $length, @addrs) = gethostbyaddr(inet_aton($domain_info{$d}{'nethost'}),AF_INET);
+	    print "A=$name ";
+	}
+
+	# Display nameserver if not local
+	my $plain_domain = $domain_info{$d}{'name_plain'};
+	if (exists $domain_info{$plain_domain}{'nameservers'}) {
+	    if (defined $domain_info{$plain_domain}{'nameservers_ip'}) {
+		foreach my $ns (split ',',$domain_info{$plain_domain}{'nameservers_ip'}) {
+		    if (!is_local($ns)) {
+			my $name = gethostbyaddr(inet_aton($ns),AF_INET);
+			print "NS=$name ";
+			last;  # only show first non-local nameserver
+		    }
+		}
+	    }
+	}
+	print "\n";
+    }
+}
+
 __END__
+
