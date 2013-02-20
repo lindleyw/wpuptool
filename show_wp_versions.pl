@@ -33,7 +33,7 @@ $ ./show_wp_versions.pl  [domain_regexp]
       Default: sort by domain name
                (subdomain names have low priority in the sort)
 
- -l   Long format: include template and plugin report ~~~
+ -l   Long format: include template and plugin report ~~~ unfinished
  -n   Sort by numeric version number
  -t   Sort by Subversion date/time
  -e   Sort by domain expiration date
@@ -210,8 +210,8 @@ sub find_wp_version {
 	    open DOMAIN_CFG, "<$v_file";
 	    while (<DOMAIN_CFG>) {
 		if (/wp_version\s*=\s*[\'\"]([-0-9.a-zA-Z]+)/) {
-		    $domain_info_ref->{'wp_version'} = 'WP ' . simplify_wp_version($1);
-		    $domain_info_ref->{'version_sort'} = $domain_info_ref->{'wp_version'};
+		    $domain_info_ref->{'wp_version'} = simplify_wp_version($1);
+		    $domain_info_ref->{'version_sort'} = 'WP ' . $domain_info_ref->{'wp_version'};
 		    last;
 		}
 	    }
@@ -226,8 +226,8 @@ sub find_wp_version {
 		    $domain_info_ref->{'svn_url'} = $svn_info->url;
 		    $domain_info_ref->{'svn_root'} = $svn_info->root;
 		    if ($svn_info->url =~ m{/(tags/[^/]+|\w+)\Z}) {
-			$domain_info_ref->{'svn_version'} = 'WP ' . simplify_wp_version($1);
-			$domain_info_ref->{'version_sort'} = $domain_info_ref->{'svn_version'};
+			$domain_info_ref->{'svn_version'} = simplify_wp_version($1);
+			$domain_info_ref->{'version_sort'} = 'WP ' . $domain_info_ref->{'svn_version'};
 		    }
 		}
 	    }
@@ -277,6 +277,113 @@ sub backup_wp_database {
 }
 
 use LWP::Simple;
+use English;
+
+my %wp_repository;  # Cache repository information
+
+sub find_latest_wp {
+
+    my $domain_info_ref = shift;
+    my $repository = $domain_info_ref->{'svn_url'}->{'host'};
+
+    if (!exists $wp_repository{$repository}) {
+	# Have not already checked this repository. Note, we might put undefined in there if something goes wrong.
+	my $url = 'http://' . $repository . '/tags/';
+	$wp_repository{$repository}{'tags_url'} = $url;
+
+	my $content = get $url;
+	my @versions = sort ($content =~ m{<a href="([0-9a-zA-Z_][0-9a-zA-Z_.]+)/">}smg);
+	$wp_repository{$repository}{'versions'} = \@versions;	
+    }
+    if (defined($wp_repository{$repository}{'versions'})) {
+	return @{$wp_repository{$repository}{'versions'}}[-1];
+    }
+    return;
+
+}
+
+
+sub wordpress_needs_upgrading {
+
+    my $domain_info_ref = shift;
+    my $wp_ver = $domain_info_ref->{'svn_version'};
+
+    # Is it a tagged version?
+    if ($wp_ver !~ m{^tags/}) {
+	return 0;   # no.  could be trunk or a branch.  do not upgrade.
+    }
+
+    my $latest = find_latest_wp($domain_info_ref);
+    if (defined $latest) {
+	$latest = "tags/$latest"; 
+    }
+    if ($wp_ver ge $latest) {
+	return 0;   # up to date against its repository
+    }
+
+    return $latest;
+
+}
+
+use File::stat;
+use File::chdir;
+use Cwd;
+
+sub upgrade_wordpress {
+
+    my ($domain_info_ref, $new_version) = @_;
+
+    # Retrieve a copy of the home page
+
+    # Determine group and user ID for owning directory
+
+print "EGID: " . $) . "\n";
+print "EUID: " . $> . "\n";
+
+    # Temporarily change gid, uid for svn operations
+    my $version_file = $domain_info_ref->{'wp_version_file'}; # 'path'};
+
+    my $sb = stat($version_file);
+    if (!$sb) {
+	warn "WRN: $version_file: $!";
+	return;
+    }
+
+    # print "OK: $version_file: $!";
+
+    my ($old_egid,$old_euid);
+    $old_egid = $);
+    $old_euid = $>;
+
+    $) = $sb->gid;
+    $> = $sb->uid;
+
+    # Tell subversion to upgrade the version
+
+    # Ensure current directory has WP installed through Subversion
+    # prepare to do:   "svn switch __version__ ."
+    # where __version__ is one of:
+    #    $svn_base/tags/$latest_version/
+    #    $svn_base/tags/trunk/
+    # Then do an "svn update"
+
+    local $CWD = $domain_info_ref->{'path'};
+
+    my $new_svn = $domain_info_ref->{'svn_root'} . '/' . $new_version;
+
+    print "DIRECTORY: [" . getcwd . "] executing command [$new_svn]\n";
+    system('svn switch ' . $new_svn);
+
+    $) = $old_egid;
+    $> = $old_euid;
+
+    # Retrieve a new copy of the home page
+
+    # If new copy of home page does not include </html>, something probably went wrong
+
+
+}
+
 
 sub upgrade_database {
 
@@ -284,6 +391,11 @@ sub upgrade_database {
     my $domain_base = $domain_info_ref->{'name_base'};
 
     # print Dumper($domain_info_ref);
+
+    my $new_version = wordpress_needs_upgrading($domain_info_ref);
+    if ( $new_version ) {
+	upgrade_wordpress($domain_info_ref, $new_version);
+    }
 
     my $url = "http://$domain_info_ref->{'name'}/wp-admin/upgrade.php?step=1&backto=/wp-admin/";
     my $content = get $url;
