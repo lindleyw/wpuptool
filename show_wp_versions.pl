@@ -10,7 +10,7 @@ use Carp;
 # All rights reserved. This program is free software; you can redistribute
 # it and/or modify it under the same terms as Perl itself.
 
-my $VERSION = "1.6";
+my $VERSION = "1.7";
 
 =head1 NAME
 
@@ -54,6 +54,7 @@ getopt("");
 use App::Info::HTTPD::Apache;
 use Apache::ConfigParser;
 use SVN::Class;
+use Regexp::Common;
 
 use Data::Dumper;
 
@@ -199,8 +200,9 @@ sub find_wp_version {
     foreach my $wp_root ("$doc_root/", 
 			"$doc_root/wordpress/"
 			) {
-	my $v_file = $wp_root . $wp_version_file;
 	$domain_info_ref->{'exists'} = 1 if (-e $wp_root); # Track whether directory exists
+
+	my $v_file = $wp_root . $wp_version_file;
 	if (-e $v_file) {
 	    $domain_info_ref->{'wp_version_file'} = $v_file;
 	    # my $domain_uid = (stat($v_file))[4];
@@ -243,7 +245,13 @@ sub find_wp_database {
 
     my $doc_root = $domain_info_ref->{'path'};
 
+    # We actually parse these PHP values in the config file:
+    my %php_server_vars;
+    $php_server_vars{'DOCUMENT_ROOT'} = $doc_root;
+
+    print "FIND_WP\n";
     foreach my $wp_root ("$doc_root/", 
+			 "$doc_root/../",  # also find in parent directory
 			"$doc_root/wordpress/"
 			) {
 	my $v_file = $wp_root . "wp-config.php";
@@ -252,8 +260,17 @@ sub find_wp_database {
 	    
 	    # Find stated Wordpress version from .php file
 	    open DOMAIN_CFG, "<$v_file";
+
+	    my $i = 0;
 	    while (<DOMAIN_CFG>) {
-		if (/'(DB_\w+)'\s*,\s*'([^\']+)'/) {
+		# Replace $_SERVER['DOCUMENT_ROOT'] with actual value of docroot
+		s<\$_SERVER\s*\[\s*$RE{quoted}{-keep}\s*\]><"'".$php_server_vars{$3.$6}."'">e;
+		# Collapse string concatenations
+		s<$RE{quoted}{-keep}\s*\.\s*$RE{quoted}{-keep}><'$3$6'>g;
+		# Treat define keyword as assignment
+		s<\bdefine\s*\(\s*$RE{quoted}{-keep}\s*,><$1=>i;
+		print "$_\n";
+		if (/'(DB_\w+)'\s*,\s*'([^\']+)'/ || /define\W+(\w+)/) {
 		    $domain_info_ref->{lc($1)} = $2;
 		}
 	    }
@@ -781,6 +798,7 @@ foreach my $d (@found_domains) {
 
     next if $d =~ /^~/;  # ignore our internal data
     next if (defined $domain_match && $d !~ /$domain_match/);
+    print "($d)";
 
     if (find_wp_version(\%{$domain_info{$d}})) {
 	find_wp_database(\%{$domain_info{$d}});
