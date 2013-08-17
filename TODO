@@ -14,12 +14,22 @@ cache full list of installed plugins and themes
 ... this script as cron-able job?
 
 
+----------------
+
+* Warning for WP installs with "admin" administrative user (pick
+  something else!)
+
+* Crosstab list of wp_users by associated email address
+
+* Crosstab list of all themes, and plugins, by site /or/ version. 
+
 **********************************************************************
 
 
-how to retrieve current version of WP repository plugins?
 
 -----------------
+
+How to retrieve current version of WP repository plugins:
 
 mysql> select * from wp_options where option_name = "active_plugins" \G
 *************************** 1. row ***************************
@@ -58,6 +68,13 @@ mysql> select * from wp_options where option_name="template" or option_name='sty
 'stylesheet' is the folder name for the current child theme; 'template' for
 the parent theme.  'current_theme' is the theme name as defined in the child
 theme's style.css.
+
+****************
+
+How to retrieve remote (authoritative) version of a plugin from the
+WordPress repository: example code at
+
+https://bitbucket.org/droidzone/wordpress_plugin_updater/
 
 **********************************************************************
 
