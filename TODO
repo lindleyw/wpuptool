@@ -13,11 +13,13 @@ cache full list of installed plugins and themes
 ... all persistent data into a database?
 ... this script as cron-able job?
 
-
 ----------------
 
 * Warning for WP installs with "admin" administrative user (pick
   something else!)
+
+* Warning for WP installs with wp-config.php in blog directory
+  (suggest directory above document_root)
 
 * Crosstab list of wp_users by associated email address
 
