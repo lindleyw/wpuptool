@@ -78,6 +78,30 @@ WordPress repository: example code at
 
 https://bitbucket.org/droidzone/wordpress_plugin_updater/
 
+Basically you can retrieve:
+
+http://api.wordpress.org/plugins/info/1.0/{plugin_slug}.json
+
+and examine the json structure for:
+
+    name    	  Plugin name
+    short_description
+    slug	  Plugin slug
+    version	  Current version
+    author	  Author's personal page link
+    contributors  key/value: author's WP-codex username/link to WP profile page
+    requires	  Version of WP required
+    compatibility Matrix...
+    rating	  Overall user rating
+    num_ratings	  How many WP codex users have rated
+    downloaded	  Popularity count
+    last_updated  YYYY-MM-DD
+    added	  YYYY-MM-DD
+    homepage	  author's plugin homepage
+    sections	  key/value: section name/HTML derived from Markdown readme
+    download_link
+    donate_link
+
 **********************************************************************
 
 Use a SQLite database (see DBD::SQLite [1]) -- or a regular MySQL database -- to store/cache
@@ -154,3 +178,11 @@ do
   /opt/wordpress/wptool upgrade >> $logfile
   popd
 done
+
+----------------
+
+Consider ability to update plugins, like
+
+https://bitbucket.org/droidzone/wordpress_plugin_updater/src/8bddb9c20b8fbfa727d7042e848590f64c934cfe/updater.pl?at=master
+
+but that script has serious problems.  just get some inspiration there.
