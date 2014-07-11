@@ -1,4 +1,0 @@
-wpuptool
-========
-
-WordPress update tool
