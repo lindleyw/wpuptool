@@ -1,0 +1,28 @@
+Required for CPAN install of WWW::Namecheap::API
+
+  yum install perl-XML-SAX
+  yum install perl-XML-SAX-ExpatXS
+  yum install perl-XML-Simple
+  yum install perl-LWP-Protocol-https 
+  yum install perl-Test-Deep
+
+I also had to manually install it... why?  Each time I did
+
+  cpan> install WWW::Namecheap::API
+
+it would seem to install, and doing the install again within the same session of cpan would say already installed and do nothing:
+
+   Running install for module 'WWW::Namecheap::API'
+   Running Build for T/TW/TWILDE/WWW-Namecheap-API-0.05.tar.gz
+   Has already been unwrapped into directory
+      /root/.cpan/build/WWW-Namecheap-API-0.05-m2rdR1
+
+but exiting cpan and re-entering it... it would re-install all over
+again, and upon exiting cpan it would not be installed at all!
+AAAARGH
+
+So I finally figured you could go into the directory listed and
+manually:
+
+   cp -a lib/WWW/ /usr/local/share/perl5/
+

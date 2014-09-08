@@ -28,6 +28,46 @@ cache full list of installed plugins and themes
 **********************************************************************
 
 
+----------------
+
+2014-04-15
+
+* Use DBI and SQL::Maker to open an actual database connection for
+  each site
+
+* Warning for WP installs with "admin" administrative user (pick
+  something else!)
+
+* Warning, or possibly force reset, for sites with option
+  'admin_email' not set to system-wide (super-admin) value.  NOTE:
+  admin_email is where the (annoying) "New version of WordPress
+  available!" messages go.  These should NOT pester individual site
+  owners.
+
+* Warning for WP installs with wp-config.php in blog directory
+  (suggest directory above document_root)
+
+* Crosstab list of wp_users by associated email address
+
+* Crosstab list of all themes, and plugins, by site /or/ version. 
+  see below.
+
+**********************************************************************
+
+2014-04-17
+
+Automatic updates.
+
+* Updates can be disabled in wp-config.php:
+
+  define( 'AUTOMATIC_UPDATER_DISABLED', true );
+  // or, to just disable core updates //
+  define( 'WP_AUTO_UPDATE_CORE', false );
+
+* Also can have a plugin (must-use?) which does:
+
+  add_filter( 'automatic_updater_disabled', '__return_true' );
+
 
 -----------------
 

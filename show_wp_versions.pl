@@ -6,11 +6,12 @@ use Carp;
 
 # show_wp_versions.pl
 #
-# Copyright (c) 2009-2013 William Lindley <wlindley@wlindley.com>
+# Copyright (c) 2009-2014 The Lindley Company
+# Written by William Lindley <wlindley@wlindley.com>
 # All rights reserved. This program is free software; you can redistribute
 # it and/or modify it under the same terms as Perl itself.
 
-my $VERSION = "1.7";
+my $VERSION = "1.8";
 
 =head1 NAME
 
