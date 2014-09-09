@@ -87,24 +87,6 @@ sub split_domain_parts {
     $info_ref->{$domain_name}{'name_sort'} = $plain_domain . "." . $domain_subs;
 }
 
-sub backup_database {
-    my ($user, $pass, $host, $db) = @_;
-
-    $pass =~ s/"/\"/g;
-    $pass =~ s/\$/\\\$/g;
-    if (!$host) {
-	$host = 'localhost';
-    }
-
-    if ($user && $pass && $host && $db) {
-
-      # print "BACKUP DB: ($user, $pass, $host, $db)\n";
-
-      # shell hack: password sent in the blind, and not in temp file; not even 'ps axf' can see it
-      `printf '[client]\npassword=%s\n' "$pass" | 3<&0 mysqldump  --defaults-file=/dev/fd/3 $db -u $user -h $host >/tmp/\`date +$db-%Y%m%d-%H%M.sql\``;
-    }
-}
-
 #
 # PHPBB Handling
 #
