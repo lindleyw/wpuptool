@@ -186,12 +186,6 @@ sub backup_phpbb_database {
 
 my $wp_version_file = "wp-includes/version.php";
 
-sub simplify_wp_version {
-    my $version = shift;
-    $version =~ s{(\w+-\w+)-.*}{$1}; # eliminate beta minutiae after second dash
-    return $version;
-}
-
 sub find_wp_version {
     my $domain_info_ref = shift;
 
@@ -213,7 +207,7 @@ sub find_wp_version {
 	    open DOMAIN_CFG, "<$v_file";
 	    while (<DOMAIN_CFG>) {
 		if (/wp_version\s*=\s*[\'\"]([-0-9.a-zA-Z]+)/) {
-		    $domain_info_ref->{'wp_version'} = simplify_wp_version($1);
+		    $domain_info_ref->{'wp_version'} = simplify_version($1);
 		    $domain_info_ref->{'version_sort'} = 'WP ' . $domain_info_ref->{'wp_version'};
 		    last;
 		}

@@ -3,44 +3,37 @@ package WebApp::PHPBB v0.0.1 {
 #
 # PHPBB Handling
 #
+    use Moose;
 
-    my $phpbb_version_file = "includes/constants.php";
+    extends 'WebApp';
+    has 'doc_root',     is => 'ro', isa => 'Maybe[Str]';
+    has 'config_file',  is => 'ro', isa => 'Maybe[Str]';
+    has 'version_file', is => 'ro', isa => 'Maybe[Str]';
+    has 'version',      is => 'ro', isa => 'Maybe[Str]';
+    has 'version_sort', is => 'ro', isa => 'Maybe[Str]';
 
-sub find_app {
-    # Looks in the given directory, and a list of standard subdirectory locations,
-    # to find any PHPBB installations. 
-    # Returns:
-    #   undef, or a blessed object (…?)
-    print __PACKAGE__ . ': ' . join('|',@_) . "\n";
-    undef;
-}
+    use constant APP_VERSION_FILE => "/includes/constants.php";
+    use constant APP_CONFIG_FILE  => "/config.php";
 
+    sub find_phpbb_version {
 
-sub find_phpbb_version {
+	# /home/someuser/public_html/includes/constants.php:define('PHPBB_VERSION', '3.0.8');
+	
+	my ($self, $doc_root) = @_;
 
-# /home/someuser/public_html/includes/constants.php:define('PHPBB_VERSION', '3.0.8');
+	return 0 if !defined $doc_root;
 
-    my $domain_info_ref = shift;
-
-    my $doc_root = $domain_info_ref->{'path'};
-    return 0 if !defined $doc_root;
-
-    foreach my $app_root ("$doc_root/", 
-			"$doc_root/forum/"
-			) {
-	my $v_file = $app_root . $phpbb_version_file;
-	$domain_info_ref->{'exists'} = 1 if (-e $app_root); # Track whether directory exists
+	$doc_root =~ s{/\Z}{}; # remove trailing slash
+	my $v_file = $doc_root . APP_VERSION_FILE;
 	if (-e $v_file) {
-	    $domain_info_ref->{'phpbb_version_file'} = $v_file;
-	    # my $domain_uid = (stat($v_file))[4];
-	    # $domain_info_ref->{'owner'} = ( getpwuid( $domain_uid ))[0];
-	    
-	    # Find stated Wordpress version from .php file
+	    $self->doc_root($doc_root);
+	    $self->version_file ($v_file);
+	    # Find stated version from .php file
 	    open DOMAIN_CFG, "<$v_file";
 	    while (<DOMAIN_CFG>) {
 		if (/\'PHPBB_VERSION\'\s*,\s*[\'\"]([-0-9.a-zA-Z]+)/) {
-		    $domain_info_ref->{'phpbb_version'} = 'BB ' . simplify_wp_version($1);
-		    $domain_info_ref->{'version_sort'} = $domain_info_ref->{'phpbb_version'};
+		    $self->version('BB ' . $self->simplify_version($1));
+		    $self->version_sort($self->version);
 		    last;
 		}
 	    }
@@ -48,42 +41,51 @@ sub find_phpbb_version {
 
 	    return 1;
 	}
+	return 0;
     }
-    return 0;
-}
 
-sub backup_phpbb_database {
+    sub find_database {
 
-    my $domain_info_ref = shift;
+	my $self = shift;
+	my %db_info;
 
-    my $doc_root = $domain_info_ref->{'path'};
-
-    foreach my $wp_root ("$doc_root/", 
-			"$doc_root/forum/"
-			) {
-	my $v_file = $wp_root . "config.php";
+	my $v_file = $self->doc_root() . APP_CONFIG_FILE;
 	if (-e $v_file) {
-	    $domain_info_ref->{'phpbb_config_file'} = $v_file;
+	    $self->config_file($v_file);
 
 	    open DOMAIN_CFG, "<$v_file";
 	    while (<DOMAIN_CFG>) {
 		if (/\$db(\w+)\s*=\s*'([^\']+)'\s*;/) {
 		    my $key = lc($1); my $val = $2;
 		    if ($key eq 'user' || $key eq 'name' || $key eq 'host') {
-			$domain_info_ref->{"db_$key"} = $val;
+			$db_info{$key} = $val;
 		    } elsif ($key eq 'passwd') {
-			$domain_info_ref->{"db_password"} = $val;
+			$db_info{'password'} = $val;
 		    }
 		}
 	    }
 	    close DOMAIN_CFG;
 
-	    backup_database( $domain_info_ref->{'db_user'}, $domain_info_ref->{'db_password'},
-			     $domain_info_ref->{'db_host'}, $domain_info_ref->{'db_name'});
-
+	    if (exists $db_info{name}) {
+		$self->database(%db_info); # save connection
+	    }
 	}
     }
-}
+
+    sub app_locations {
+	# Returns a list of standard subdirectory locations in which
+	# this application might reside.
+	return ('./', './forum/', './phpbb');
+    }
+
+    sub find_app {
+	# Looks in the given directory, and a list of standard subdirectory locations,
+	# to find any PHPBB installations. 
+	# Returns:
+	#   an array of zero or more blessed objects representing installed applications
+	print __PACKAGE__ . ': ' . join('|',@_) . "\n";
+	();
+    }
 
 }
 
