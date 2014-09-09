@@ -1,4 +1,4 @@
-package WebApp::Plugins::PHPBB v0.0.1 {
+package WebApp::PHPBB v0.0.1 {
 
 #
 # PHPBB Handling
@@ -6,7 +6,7 @@ package WebApp::Plugins::PHPBB v0.0.1 {
 
     my $phpbb_version_file = "includes/constants.php";
 
-sub find_version {
+sub find_app {
     # Looks in the given directory, and a list of standard subdirectory locations,
     # to find any PHPBB installations. 
     # Returns:

@@ -68,6 +68,13 @@ Automatic updates.
 
   add_filter( 'automatic_updater_disabled', '__return_true' );
 
+-----------------
+
+2014-09-08
+
+use SQL::Abstract::More
+
+...instead of writing gnarly queries directly
 
 -----------------
 
