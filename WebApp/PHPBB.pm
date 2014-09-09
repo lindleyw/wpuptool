@@ -15,7 +15,7 @@ package WebApp::PHPBB v0.0.1 {
     use constant APP_VERSION_FILE => "/includes/constants.php";
     use constant APP_CONFIG_FILE  => "/config.php";
 
-    sub find_phpbb_version {
+    sub find_version {
 
 	# /home/someuser/public_html/includes/constants.php:define('PHPBB_VERSION', '3.0.8');
 	
@@ -23,7 +23,7 @@ package WebApp::PHPBB v0.0.1 {
 
 	return 0 if !defined $doc_root;
 
-	$doc_root =~ s{/\Z}{}; # remove trailing slash
+	$doc_root =~ s{/\.?/?\Z}{}; # remove trailing slash or '/./'
 	my $v_file = $doc_root . APP_VERSION_FILE;
 	if (-e $v_file) {
 	    $self->doc_root($doc_root);
@@ -75,7 +75,7 @@ package WebApp::PHPBB v0.0.1 {
     sub app_locations {
 	# Returns a list of standard subdirectory locations in which
 	# this application might reside.
-	return ('./', './forum/', './phpbb');
+	return ('./', './forum/', './phpbb/');
     }
 
     sub find_app {
