@@ -233,3 +233,24 @@ Consider ability to update plugins, like
 https://bitbucket.org/droidzone/wordpress_plugin_updater/src/8bddb9c20b8fbfa727d7042e848590f64c934cfe/updater.pl?at=master
 
 but that script has serious problems.  just get some inspiration there.
+
+----------------
+
+Perhaps write modules
+	App::Info::Web::WordPress
+	App::Info::Web::PHPBB
+
+with attributes
+     user	 -> program's owner
+     name	 -> program name, e.g., "WordPress"
+     name_short	 -> abbreviation, e.g., "WP"
+     port	 -> Apache/nginx port (needed?)
+     major     \
+     minor      >-> version numbers
+     patch     /
+     version	 -> version string
+     doc_root	 -> web application's home directory on filesystem
+     web_root	 -> URL e.g., "http://www.example.com/"
+     conf_file	 -> configuration file for program
+     version_ctl -> "git" or "svn" as appropriate, if any
+     repository	 -> git remote, or svn repository URL

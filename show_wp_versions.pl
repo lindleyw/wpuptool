@@ -226,7 +226,9 @@ sub find_wp_database {
     my %php_server_vars;
     $php_server_vars{'DOCUMENT_ROOT'} = $doc_root;
 
-    print "FIND_WP\n";
+    my $debug;
+
+    $debug = "FIND_WP\n";
     foreach my $wp_root ("$doc_root/", 
 			 "$doc_root/../",  # also find in parent directory
 			"$doc_root/wordpress/"
@@ -246,7 +248,7 @@ sub find_wp_database {
 		s<$RE{quoted}{-keep}\s*\.\s*$RE{quoted}{-keep}><'$3$6'>g;
 		# Treat define keyword as assignment
 		s<\bdefine\s*\(\s*$RE{quoted}{-keep}\s*,><$1=>i;
-		print "$_\n";
+		$debug .= "$_\n";
 		if (/'(DB_\w+)'\s*,\s*'([^\']+)'/ || /define\W+(\w+)/) {
 		    $domain_info_ref->{lc($1)} = $2;
 		}
@@ -331,8 +333,8 @@ sub upgrade_wordpress {
 
     # Determine group and user ID for owning directory
 
-print "EGID: " . $) . "\n";
-print "EUID: " . $> . "\n";
+    # print "EGID: " . $) . "\n";
+    # print "EUID: " . $> . "\n";
 
     # Temporarily change gid, uid for svn operations
     my $version_file = $domain_info_ref->{'wp_version_file'}; # 'path'};
@@ -788,6 +790,7 @@ foreach my $d (@found_domains) {
 	}
 	if ($::opt_U) {
 	    upgrade_database(\%{$domain_info{$d}});
+	    find_wp_version(\%{$domain_info{$d}});
 	}
     }
     if (find_phpbb_version(\%{$domain_info{$d}})) {

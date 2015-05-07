@@ -40,55 +40,55 @@ package WebApp::WordPress v0.0.1 {
 	    }
 	    return 0;
 	}
+    }
 
-	sub find_database {
+    sub find_database {
 
-	    my $self = shift;
-	    my %db_info;
-	    my %php_server_vars;
-	    $php_server_vars{'DOCUMENT_ROOT'} = $self->doc_root;
+	my $self = shift;
+	my %db_info;
+	my %php_server_vars;
+	$php_server_vars{'DOCUMENT_ROOT'} = $self->doc_root;
 
-	    my $v_file = $self->doc_root() . APP_CONFIG_FILE;
-	    if (-e $v_file) {
-		$self->config_file($v_file);
+	my $v_file = $self->doc_root() . APP_CONFIG_FILE;
+	if (-e $v_file) {
+	    $self->config_file($v_file);
 
-		open DOMAIN_CFG, "<$v_file";
-		while (<DOMAIN_CFG>) {
-		    # Replace $_SERVER['DOCUMENT_ROOT'] with actual value of docroot
-		    s<\$_SERVER\s*\[\s*$RE{quoted}{-keep}\s*\]><"'".$php_server_vars{$3.$6}."'">e;
-		    # Collapse string concatenations
-		    s<$RE{quoted}{-keep}\s*\.\s*$RE{quoted}{-keep}><'$3$6'>g;
-		    # Treat define keyword as assignment
-		    s<\bdefine\s*\(\s*$RE{quoted}{-keep}\s*,><$1=>i;
-		    print "$_\n";
-		    if (/'(DB_\w+)'\s*,\s*'([^\']+)'/ || /define\W+(\w+)/) {
-			$db_info{lc($1)} = $2;
-		    }
-		}
-		close DOMAIN_CFG;
-
-		if (exists $db_info{name}) {
-		    $self->database(%db_info); # save connection
+	    open DOMAIN_CFG, "<$v_file";
+	    while (<DOMAIN_CFG>) {
+		# Replace $_SERVER['DOCUMENT_ROOT'] with actual value of docroot
+		s<\$_SERVER\s*\[\s*$RE{quoted}{-keep}\s*\]><"'".$php_server_vars{$3.$6}."'">e;
+		# Collapse string concatenations
+		s<$RE{quoted}{-keep}\s*\.\s*$RE{quoted}{-keep}><'$3$6'>g;
+		# Treat define keyword as assignment
+		s<\bdefine\s*\(\s*$RE{quoted}{-keep}\s*,><$1=>i;
+		print "$_\n";
+		if (/'(DB_\w+)'\s*,\s*'([^\']+)'/ || /define\W+(\w+)/) {
+		    $db_info{lc($1)} = $2;
 		}
 	    }
-	}
+	    close DOMAIN_CFG;
 
-	sub app_locations {
-	    # Returns a list of standard subdirectory locations in which
-	    # this application might reside.
-	    return ('./', './wordpress/"');
+	    if (exists $db_info{name}) {
+		$self->database(%db_info); # save connection
+	    }
 	}
-
-	sub find_app {
-	    # Looks in the given directory, and a list of standard subdirectory locations,
-	    # to find any PHPBB installations. 
-	    # Returns:
-	    #   an array of zero or more blessed objects representing installed applications
-	    print __PACKAGE__ . ': ' . join('|',@_) . "\n";
-	    ();
-	}
-
     }
+
+    sub app_locations {
+	# Returns a list of standard subdirectory locations in which
+	# this application might reside.
+	return ('./', './wordpress/"');
+    }
+
+    sub find_app {
+	# Looks in the given directory, and a list of standard subdirectory locations,
+	# to find any PHPBB installations. 
+	# Returns:
+	#   an array of zero or more blessed objects representing installed applications
+	print __PACKAGE__ . ': ' . join('|',@_) . "\n";
+	();
+    }
+
 
 };
 
