@@ -249,7 +249,7 @@ sub find_wp_database {
     my %php_server_vars;
     $php_server_vars{'DOCUMENT_ROOT'} = $doc_root;
 
-    print "FIND_WP\n";
+    # print "FIND_WP\n";
     foreach my $wp_root ("$doc_root/", 
 			 "$doc_root/../",  # also find in parent directory
 			"$doc_root/wordpress/"
@@ -269,7 +269,7 @@ sub find_wp_database {
 		s<$RE{quoted}{-keep}\s*\.\s*$RE{quoted}{-keep}><'$3$6'>g;
 		# Treat define keyword as assignment
 		s<\bdefine\s*\(\s*$RE{quoted}{-keep}\s*,><$1=>i;
-		print "$_\n";
+		# print "$_\n";
 		if (/'(DB_\w+)'\s*,\s*'([^\']+)'/ || /define\W+(\w+)/) {
 		    $domain_info_ref->{lc($1)} = $2;
 		}
@@ -388,8 +388,17 @@ print "EUID: " . $> . "\n";
 
     my $new_svn = $domain_info_ref->{'svn_root'} . '/' . $new_version;
 
+    my $hidden_admin = -e '.wp-admin';
+    if ($hidden_admin) {
+	rename '.wp-admin', 'wp-admin';
+    }
+
     print "DIRECTORY: [" . getcwd . "] executing command [$new_svn]\n";
     system('svn switch ' . $new_svn);
+
+    if ($hidden_admin) {
+	rename 'wp-admin', '.wp-admin';
+    }
 
     $) = $old_egid;
     $> = $old_euid;
@@ -811,6 +820,7 @@ foreach my $d (@found_domains) {
 	}
 	if ($::opt_U) {
 	    upgrade_database(\%{$domain_info{$d}});
+	    find_wp_version(\%{$domain_info{$d}});
 	}
     }
     if (find_phpbb_version(\%{$domain_info{$d}})) {
